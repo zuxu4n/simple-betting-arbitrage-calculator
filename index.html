@@ -164,7 +164,45 @@
   .sign:hover { background: var(--paper); }
   .slip.decimal-mode .sign { display: none; }
 
-  .wager-block { border-top: 1.5px dashed var(--rule); margin: 4px -22px 0; padding: 16px 22px 4px; }
+  /* per-book stake input (always visible; suggestion is greyed, never auto-filled) */
+  .book-stake { display: block; margin-top: 10px; }
+  .book-stake .stake-input { display: flex; }
+  .book-stake.off .stake-input { display: none; }
+  .book-stake.off .stake-label { color: var(--muted); }
+  .stake-cur {
+    flex: 0 0 auto; display: flex; align-items: center; padding: 0 11px;
+    border: 1px solid var(--line); border-right: 0; background: #f2f8f4;
+    color: var(--green); font-family: var(--mono); font-size: 15px; font-weight: 700;
+  }
+  .book-stake-input { flex: 1; }
+  .stake-suggest { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: .03em; padding: 4px 0 0; }
+  .stake-suggest:empty { display: none; }
+  .stake-note { display: none; font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: .03em; padding: 3px 0; }
+  .book-stake.off .stake-note { display: block; }
+
+  /* lock toggle on the stake input */
+  .stake-lock {
+    flex: 0 0 auto; display: flex; align-items: center; justify-content: center; width: 34px;
+    border: 1px solid var(--line); border-left: 0; background: #fff; cursor: pointer; color: var(--muted); padding: 0;
+  }
+  .stake-lock svg { width: 13px; height: 13px; display: block; }
+  .stake-lock:hover { color: var(--ink); }
+  .stake-lock.locked { color: var(--ink); background: #eee7d6; }
+  .book-stake-input[readonly] { background: #f4f1ea; color: var(--ink); cursor: default; }
+
+  /* per-book profit boost */
+  .boost-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-top: 12px; }
+  .boost-label { font-size: 10px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+  .boost-wrap { display: inline-flex; align-items: stretch; }
+  .boost {
+    width: 50px; padding: 5px 8px; font-size: 13px; font-family: var(--mono); text-align: right;
+    background: #fff; border: 1px solid var(--line); border-radius: 0; color: var(--ink); outline: none;
+  }
+  .boost:focus { border-color: var(--ink); }
+  .boost-pct { display: flex; align-items: center; padding: 0 8px; font-family: var(--mono); font-size: 13px; color: var(--muted); border: 1px solid var(--line); border-left: 0; background: #fff; }
+  .boost-hint { font-size: 10px; color: var(--muted); font-family: var(--mono); letter-spacing: .02em; }
+  .boosted-odds { font-family: var(--mono); font-size: 10px; color: var(--green); letter-spacing: .03em; padding: 4px 0 0; }
+  .boosted-odds:empty { display: none; }
 
   /* result */
   .result { border-top: 1.5px solid var(--ink); background: var(--paper); padding: 18px 22px 20px; }
@@ -205,7 +243,7 @@
   let seq = 0;        // globally-unique source for odds input ids
   let ticketNo = 0;   // running ticket number shown on each slip
 
-  const money = n => "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = n => (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // Build one fully self-contained arbitrage ticket and return its root element.
   function createTicket() {
@@ -240,12 +278,6 @@
       <div class="body">
         <div class="books"></div>
         <button class="add-book">+ Add book</button>
-        <div class="wager-block">
-          <div class="field full">
-            <label>Wager (optional)<button class="clr btn-clear-wager" style="float:right">Clear</button></label>
-            <input type="text" inputmode="decimal" class="wager" placeholder="100" />
-          </div>
-        </div>
       </div>
 
       <div class="result">
@@ -267,6 +299,15 @@
     let fmt = "decimal";
     const placeholders = () => fmt === "decimal" ? ["2.10", "1.95"] : ["110", "105"];
     const signOf = id => root.querySelector('.sign[data-for="' + id + '"]').dataset.sign;
+
+    // Basis for the greyed balanced-stake suggestion when no stake is entered yet.
+    const DEFAULT_TOTAL = 100;
+
+    // Decimal odds -> a display string in the ticket's current format.
+    const toDisplay = dec => {
+      if (fmt === "decimal") return dec.toFixed(2);
+      return dec >= 2 - 1e-9 ? "+" + Math.round((dec - 1) * 100) : "-" + Math.round(100 / (dec - 1));
+    };
 
     function toDecimal(id) {
       const inp = root.querySelector("#" + id);
@@ -308,6 +349,7 @@
               <button class="sign" data-for="${aId}" data-sign="+">+</button>
               <input type="text" inputmode="decimal" class="odds odds-a" id="${aId}" placeholder="${phA}" />
             </div>
+            <div class="boosted-odds" data-side="a"></div>
           </div>
           <div class="field">
             <label>Team B</label>
@@ -315,7 +357,28 @@
               <button class="sign" data-for="${bId}" data-sign="-">-</button>
               <input type="text" inputmode="decimal" class="odds odds-b" id="${bId}" placeholder="${phB}" />
             </div>
+            <div class="boosted-odds" data-side="b"></div>
           </div>
+        </div>
+        <div class="boost-row">
+          <span class="boost-label">Boost</span>
+          <span class="boost-wrap">
+            <input type="text" inputmode="decimal" class="boost" placeholder="0" />
+            <span class="boost-pct">%</span>
+          </span>
+          <span class="boost-hint">profit boost on this book's bet</span>
+        </div>
+        <div class="book-stake">
+          <label class="stake-label">Your stake</label>
+          <div class="stake-input">
+            <span class="stake-cur">$</span>
+            <input type="text" inputmode="decimal" class="book-stake-input" />
+            <button class="stake-lock" title="Lock this stake" aria-label="Lock this stake">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3.5" y="7" width="9" height="6.3" rx="1"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>
+            </button>
+          </div>
+          <div class="stake-suggest"></div>
+          <div class="stake-note"></div>
         </div>`;
       booksEl.appendChild(el);
 
@@ -332,14 +395,33 @@
         btn.textContent = next;
         calc();
       }));
+      const stakeInp = el.querySelector(".book-stake-input");
+      const lockBtn = el.querySelector(".stake-lock");
+      const unlock = () => { stakeInp.dataset.locked = ""; stakeInp.readOnly = false; lockBtn.classList.remove("locked"); };
+
       el.querySelector(".btn-clear").addEventListener("click", () => {
         el.querySelectorAll(".odds").forEach(inp => { inp.value = ""; });
+        el.querySelector(".boost").value = "";
+        stakeInp.value = ""; unlock();
         calc();
         el.querySelector(".odds-a").focus();
       });
       el.querySelector(".btn-remove").addEventListener("click", () => {
         el.remove();
         renumber();
+        calc();
+      });
+
+      el.querySelector(".boost").addEventListener("input", calc);
+      stakeInp.addEventListener("input", calc);
+      lockBtn.addEventListener("click", () => {
+        if (stakeInp.dataset.locked === "1") { unlock(); }
+        else {
+          // Lock in the current stake — adopt the suggestion if the box is empty.
+          if (!stakeInp.value && stakeInp.placeholder) stakeInp.value = stakeInp.placeholder;
+          if (!stakeInp.value) return; // nothing to lock yet
+          stakeInp.dataset.locked = "1"; stakeInp.readOnly = true; lockBtn.classList.add("locked");
+        }
         calc();
       });
 
@@ -369,11 +451,11 @@
       calc();
     }));
 
-    q(".wager").addEventListener("input", calc);
-    q(".btn-clear-wager").addEventListener("click", () => { q(".wager").value = ""; calc(); q(".wager").focus(); });
     q(".btn-clear-all").addEventListener("click", () => {
       qa(".odds").forEach(inp => { inp.value = ""; });
-      q(".wager").value = "";
+      qa(".boost").forEach(inp => { inp.value = ""; });
+      qa(".book-stake-input").forEach(inp => { inp.value = ""; inp.dataset.locked = ""; inp.readOnly = false; });
+      qa(".stake-lock").forEach(b => b.classList.remove("locked"));
       calc();
     });
     q(".kill").addEventListener("click", () => root.remove());
@@ -393,27 +475,73 @@
       const meterFill = q(".meter-fill");
       const breakdown = q(".breakdown");
 
-      let bestA = 0, bestB = 0, bookA = null, bookB = null;
-      let bestAInp = null, bestBInp = null, countA = 0, countB = 0;
-      [...booksEl.querySelectorAll(".book")].forEach(bk => {
+      // Gather each book's raw + boosted prices. A profit boost lifts the winnings
+      // on the one bet you place at that book: odds' = 1 + (odds-1)*(1+b).
+      const data = [...booksEl.querySelectorAll(".book")].map(bk => {
         const nameInp = bk.querySelector(".book-name");
-        const name = nameInp.value.trim() || nameInp.placeholder;
+        const boost = Math.max(0, parseFloat(bk.querySelector(".boost").value) || 0);
+        const bf = 1 + boost / 100;
         const inpA = bk.querySelector(".odds-a"), inpB = bk.querySelector(".odds-b");
-        const da = toDecimal(inpA.id), db = toDecimal(inpB.id);
-        if (da != null) { countA++; if (da > bestA) { bestA = da; bookA = name; bestAInp = inpA; } }
-        if (db != null) { countB++; if (db > bestB) { bestB = db; bookB = name; bestBInp = inpB; } }
+        const rawA = toDecimal(inpA.id), rawB = toDecimal(inpB.id);
+        return { bk, inpA, inpB, boost, rawA, rawB,
+          name: nameInp.value.trim() || nameInp.placeholder,
+          bA: rawA == null ? null : 1 + (rawA - 1) * bf,
+          bB: rawB == null ? null : 1 + (rawB - 1) * bf };
       });
 
-      // Highlight the winning price for each side, but only when books compete.
+      // Show each boosted price (in the current odds format) under its input.
+      data.forEach(d => {
+        const capA = d.bk.querySelector('.boosted-odds[data-side="a"]');
+        const capB = d.bk.querySelector('.boosted-odds[data-side="b"]');
+        capA.textContent = d.boost > 0 && d.bA != null ? "→ " + toDisplay(d.bA) : "";
+        capB.textContent = d.boost > 0 && d.bB != null ? "→ " + toDisplay(d.bB) : "";
+      });
+
+      // Best price for a side. `rawBook`, if given, is spending its boost on the
+      // OTHER side, so here it only offers its raw (unboosted) price.
+      const bestSide = (side, rawBook) => {
+        let best = 0, w = null;
+        data.forEach(d => {
+          const v = d === rawBook ? (side === "A" ? d.rawA : d.rawB) : (side === "A" ? d.bA : d.bB);
+          if (v != null && v > best) { best = v; w = d; }
+        });
+        return { best, w, inp: w ? (side === "A" ? w.inpA : w.inpB) : null,
+                 boost: (w && w !== rawBook) ? w.boost : 0 };
+      };
+
+      let A = bestSide("A", null), B = bestSide("B", null);
+      // If one boosted book is best on both sides, it can only spend its boost once.
+      if (A.w && A.w === B.w && A.w.boost > 0) {
+        const totBoostA = 1 / A.best + 1 / bestSide("B", A.w).best; // boost stays on A
+        const totBoostB = 1 / bestSide("A", B.w).best + 1 / B.best; // boost stays on B
+        if (totBoostB < totBoostA) A = bestSide("A", B.w);
+        else B = bestSide("B", A.w);
+      }
+
+      const bestA = A.best, bestB = B.best;
+      const bookA = A.w ? A.w.name : null, bookB = B.w ? B.w.name : null;
+      const bestAInp = A.inp, bestBInp = B.inp;
+      const bestABoost = A.boost, bestBBoost = B.boost;
+
+      // Highlight the best (or only) filled price for each side. bestAInp/bestBInp
+      // are always a filled input, so an empty odds box is never highlighted.
       qa(".odds.best").forEach(i => i.classList.remove("best"));
-      if (countA >= 2 && bestAInp) bestAInp.classList.add("best");
-      if (countB >= 2 && bestBInp) bestBInp.classList.add("best");
+      if (bestAInp) bestAInp.classList.add("best");
+      if (bestBInp) bestBInp.classList.add("best");
 
       if (bookA == null || bookB == null) {
         verdict.className = "verdict idle";
         verdict.textContent = "— — —";
         meter.style.display = "none";
         breakdown.className = "breakdown";
+        // Stake boxes stay visible in a neutral state (no odds to suggest from yet).
+        qa(".book-stake").forEach(w => {
+          w.className = "book-stake";
+          w.querySelector(".stake-label").textContent = "Your stake";
+          w.querySelector(".book-stake-input").placeholder = "";
+          w.querySelector(".stake-suggest").textContent = "";
+          w.querySelector(".stake-note").textContent = "";
+        });
         return;
       }
 
@@ -440,23 +568,71 @@
         pct.innerHTML = `Market total <b>${impliedPct.toFixed(2)}%</b> · <b>${over.toFixed(2)}%</b> over break-even`;
       }
 
-      const wager = parseFloat(q(".wager").value);
-      if (!isNaN(wager) && wager > 0) {
-        const stakeA = wager * (1 / bestA) / implied;
-        const stakeB = wager * (1 / bestB) / implied;
-        const payout = wager / implied;
-        const profit = payout - wager;
-        const profitColor = profit >= 0 ? "var(--green)" : "var(--red)";
-        breakdown.className = "breakdown show";
-        breakdown.innerHTML = `
-          <div class="line"><span class="lbl">Stake Team A<span class="sub">${bookA} @ ${bestA.toFixed(2)}</span></span><span class="amt">${money(stakeA)}</span></div>
-          <div class="line"><span class="lbl">Stake Team B<span class="sub">${bookB} @ ${bestB.toFixed(2)}</span></span><span class="amt">${money(stakeB)}</span></div>
-          <div class="line"><span class="lbl">Guaranteed return</span><span class="amt">${money(payout)}</span></div>
-          <div class="profit"><span class="lbl">Profit</span><span class="amt" style="color:${profitColor}">${money(profit)}</span></div>`;
+      // Which book holds each winning side (a single book may hold both).
+      const bestAEl = bestAInp.closest(".book");
+      const bestBEl = bestBInp.closest(".book");
+      const sameBook = bestAEl === bestBEl;
+      const stakeVal = el => { const v = parseFloat(el.querySelector(".book-stake-input").value); return (isNaN(v) || v <= 0) ? null : v; };
+
+      // Effective stakes for the math + a greyed suggestion for the empty box.
+      // The suggestion balances around whatever the user has already entered;
+      // it is never written into the input — the user's value is left untouched.
+      let effA, effB, suggA = null, suggB = null;
+      if (sameBook) {
+        const entered = stakeVal(bestAEl);            // this book's box = total across both legs
+        const T = entered != null ? entered : DEFAULT_TOTAL;
+        effA = T * (1 / bestA) / implied;
+        effB = T * (1 / bestB) / implied;
+        if (entered == null) suggA = T;
       } else {
-        breakdown.className = "breakdown";
-        breakdown.innerHTML = "";
+        const eaA = stakeVal(bestAEl), eaB = stakeVal(bestBEl);
+        if (eaA != null && eaB == null) { effA = eaA; effB = eaA * bestA / bestB; suggB = effB; }
+        else if (eaB != null && eaA == null) { effB = eaB; effA = eaB * bestB / bestA; suggA = effA; }
+        else if (eaA != null && eaB != null) { effA = eaA; effB = eaB; }
+        else { effA = DEFAULT_TOTAL * (1 / bestA) / implied; effB = DEFAULT_TOTAL * (1 / bestB) / implied; suggA = effA; suggB = effB; }
       }
+
+      // Render each book's stake box (never overwrite the typed value).
+      [...booksEl.querySelectorAll(".book")].forEach(bk => {
+        const wrap = bk.querySelector(".book-stake");
+        const label = bk.querySelector(".stake-label");
+        const note = bk.querySelector(".stake-note");
+        const suggest = bk.querySelector(".stake-suggest");
+        const inp = bk.querySelector(".book-stake-input");
+        const showSuggest = sv => {
+          inp.placeholder = sv != null ? sv.toFixed(2) : "";
+          suggest.textContent = sv != null ? "Suggested: $" + sv.toFixed(2) : "";
+        };
+        const boostTag = b => b > 0 ? ` · +${b}% boost` : "";
+        note.textContent = "";
+        if (sameBook && bk === bestAEl) {
+          wrap.className = "book-stake"; label.textContent = `Your stake · both legs at this book${boostTag(bestABoost)}`; showSuggest(suggA);
+        } else if (!sameBook && bk === bestAEl) {
+          wrap.className = "book-stake"; label.textContent = `Your stake · Team A @ ${bestA.toFixed(2)}${boostTag(bestABoost)}`; showSuggest(suggA);
+        } else if (!sameBook && bk === bestBEl) {
+          wrap.className = "book-stake"; label.textContent = `Your stake · Team B @ ${bestB.toFixed(2)}${boostTag(bestBBoost)}`; showSuggest(suggB);
+        } else {
+          wrap.className = "book-stake off"; label.textContent = "Your stake";
+          inp.placeholder = ""; suggest.textContent = ""; note.textContent = "Not the best price — no bet here";
+        }
+      });
+
+      // Returns per outcome (equal when balanced; may differ if the user typed both sides).
+      const total = effA + effB;
+      const retA = effA * bestA, retB = effB * bestB;
+      const balanced = Math.abs(retA - retB) < 0.005;
+      const worstProfit = Math.min(retA, retB) - total;
+      const profitColor = worstProfit >= 0 ? "var(--green)" : "var(--red)";
+
+      breakdown.className = "breakdown show";
+      breakdown.innerHTML = balanced
+        ? `<div class="line"><span class="lbl">Total staked</span><span class="amt">${money(total)}</span></div>
+           <div class="line"><span class="lbl">Guaranteed return</span><span class="amt">${money(retA)}</span></div>
+           <div class="profit"><span class="lbl">Profit</span><span class="amt" style="color:${profitColor}">${money(retA - total)}</span></div>`
+        : `<div class="line"><span class="lbl">Total staked</span><span class="amt">${money(total)}</span></div>
+           <div class="line"><span class="lbl">If Team A wins</span><span class="amt">${money(retA)}</span></div>
+           <div class="line"><span class="lbl">If Team B wins</span><span class="amt">${money(retB)}</span></div>
+           <div class="profit"><span class="lbl">Profit · worst case</span><span class="amt" style="color:${profitColor}">${money(worstProfit)}</span></div>`;
     }
 
     // start with two books
