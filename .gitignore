@@ -7,6 +7,7 @@ desktop.ini
 # IDE / editor project files
 .idea/
 .vscode/
+.claude/
 
 # Dependencies (none yet, but future-proofing)
 node_modules/
