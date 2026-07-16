@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Arbitrage Calculator</title>
+<style>
+  :root {
+    --paper: #ece7dc;
+    --slip: #faf8f2;
+    --ink: #1b1815;
+    --muted: #8a8172;
+    --line: #d8d0c0;
+    --rule: #cbc2ae;
+    --green: #1f7a4d;
+    --red: #b23b2e;
+    --amber: #b8863b;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    overflow-x: auto;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .stage {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    padding: 28px;
+    width: max-content;
+    margin: 0 auto;
+  }
+  .slip {
+    flex: 0 0 400px;
+    width: 400px;
+    background: var(--slip);
+    border: 1.5px solid var(--ink);
+    box-shadow: 6px 6px 0 rgba(27,24,21,.12);
+  }
+
+  @media (max-width: 480px) {
+    body { scroll-snap-type: x mandatory; }
+    .slip { flex-basis: calc(100vw - 28px); width: calc(100vw - 28px); scroll-snap-align: center; }
+    .stage { padding: 14px; gap: 14px; }
+  }
+
+  /* add-ticket square */
+  .add-ticket {
+    flex: 0 0 46px; width: 46px; height: 46px; cursor: pointer;
+    background: var(--slip); border: 1.5px solid var(--ink);
+    box-shadow: 4px 4px 0 rgba(27,24,21,.12);
+    font-family: var(--mono); font-size: 26px; font-weight: 400; line-height: 1; color: var(--ink);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .add-ticket:hover { background: var(--ink); color: var(--slip); }
+  .add-ticket:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(27,24,21,.12); }
+
+  /* header */
+  .head { padding: 18px 22px 14px; border-bottom: 1.5px dashed var(--rule); }
+  .head-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .ticket-no { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: .08em; }
+  .kill { border: 0; background: transparent; cursor: pointer; padding: 0; color: var(--muted);
+    font-family: var(--mono); font-size: 15px; line-height: 1; }
+  .kill:hover { color: var(--red); }
+  h1 { font-size: 19px; margin: 4px 0 0; letter-spacing: -.01em; font-weight: 800; text-transform: uppercase; }
+  .tag { font-size: 11px; color: var(--muted); letter-spacing: .02em; }
+  .head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; }
+
+  .fmt { display: flex; margin: 14px 22px 0; border: 1px solid var(--ink); }
+  .fmt button {
+    flex: 1; border: 0; background: transparent; color: var(--muted); cursor: pointer;
+    font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .1em;
+    padding: 7px 0; text-transform: uppercase;
+  }
+  .fmt button + button { border-left: 1px solid var(--ink); }
+  .fmt button.active { background: var(--ink); color: var(--slip); }
+
+  .body { padding: 16px 22px 4px; }
+  .book { margin-bottom: 14px; }
+  .book h2 {
+    font-family: var(--mono); font-size: 11px; margin: 0 0 8px; color: var(--ink);
+    letter-spacing: .1em; text-transform: uppercase; display: flex; align-items: center; gap: 8px;
+  }
+  .book h2 .rule { flex: 1; height: 1px; background: var(--rule); }
+  input.book-name {
+    flex: 0 0 auto; width: 116px; padding: 1px 0; font-size: 11px; font-family: var(--mono);
+    font-weight: 400; letter-spacing: .1em; text-transform: uppercase; color: var(--ink);
+    background: transparent; border: 0; border-bottom: 1px solid transparent; border-radius: 0;
+  }
+  input.book-name::placeholder { color: var(--ink); opacity: 1; }
+  input.book-name:hover { border-bottom-color: var(--rule); }
+  input.book-name:focus { border-bottom-color: var(--ink); background: transparent; }
+
+  .clr {
+    border: 0; background: transparent; cursor: pointer; padding: 0;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); text-decoration: underline; text-underline-offset: 2px;
+  }
+  .clr:hover { color: var(--red); }
+  .rmv { margin-left: 4px; }
+  .rmv:hover { color: var(--red); }
+
+  .add-book {
+    width: 100%; margin: 2px 0 4px; padding: 9px 0; cursor: pointer;
+    background: transparent; border: 1px dashed var(--ink); color: var(--ink);
+    font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  }
+  .add-book:hover { background: var(--ink); color: var(--slip); border-style: solid; }
+
+  .row { display: flex; gap: 10px; }
+  .field { flex: 1; }
+  .field.full { flex: none; width: 100%; }
+  label { display: block; font-size: 10px; color: var(--muted); margin-bottom: 4px; letter-spacing: .06em; text-transform: uppercase; }
+  input {
+    width: 100%; padding: 9px 11px; font-size: 16px; font-family: var(--mono);
+    background: #fff; border: 1px solid var(--line); border-radius: 0;
+    color: var(--ink); outline: none;
+  }
+  input::placeholder { color: #c3baa8; }
+  input:focus { border-color: var(--ink); background: #fffdf7; }
+
+  /* best price for each side (only shown when 2+ books compete) */
+  .odds.best { border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); background: #f2f8f4; }
+  .odds.best:focus { border-color: var(--green); }
+
+  /* American-odds sign toggle in front of each odds input */
+  .odds-input { display: flex; }
+  .odds-input input { flex: 1; }
+  .sign {
+    flex: 0 0 32px; border: 1px solid var(--line); border-right: 0; background: #fff;
+    cursor: pointer; font-family: var(--mono); font-size: 17px; font-weight: 800; line-height: 1;
+    color: var(--ink); padding: 0;
+  }
+  .sign[data-sign="+"] { color: var(--green); }
+  .sign[data-sign="-"] { color: var(--red); }
+  .sign:hover { background: var(--paper); }
+  .slip.decimal-mode .sign { display: none; }
+
+  .wager-block { border-top: 1.5px dashed var(--rule); margin: 4px -22px 0; padding: 16px 22px 4px; }
+
+  /* result */
+  .result { border-top: 1.5px solid var(--ink); background: var(--paper); padding: 18px 22px 20px; }
+  .verdict-row { display: flex; align-items: baseline; justify-content: space-between; }
+  .verdict-label { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
+  .verdict { font-size: 30px; font-weight: 900; letter-spacing: .04em; line-height: 1; }
+  .verdict.yes { color: var(--green); }
+  .verdict.no { color: var(--red); }
+  .verdict.idle { color: var(--muted); font-size: 15px; font-weight: 700; letter-spacing: 0; }
+
+  .meter { margin-top: 14px; }
+  .meter-bar { height: 8px; background: #fff; border: 1px solid var(--ink); position: relative; overflow: hidden; }
+  .meter-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; transition: width .18s ease; }
+  .meter-scale { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 4px; }
+  .meter-read { font-family: var(--mono); font-size: 12px; margin-top: 8px; color: var(--ink); }
+  .meter-read b { font-weight: 700; }
+
+  .breakdown { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--rule); display: none; }
+  .breakdown.show { display: block; }
+  .line { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; padding: 5px 0; }
+  .line .lbl { color: var(--ink); }
+  .line .sub { display: block; font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: .03em; }
+  .line .amt { font-family: var(--mono); font-size: 14px; font-weight: 600; }
+  .profit { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; padding-top: 10px; border-top: 1.5px solid var(--ink); }
+  .profit .lbl { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .profit .amt { font-family: var(--mono); font-size: 20px; font-weight: 800; }
+</style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <button class="add-ticket" id="addTicket" title="Add a comparison ticket">+</button>
+  </div>
+
+<script>
+  const MIN_BOOKS = 2;
+  let seq = 0;        // globally-unique source for odds input ids
+  let ticketNo = 0;   // running ticket number shown on each slip
+
+  const money = n => "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // Build one fully self-contained arbitrage ticket and return its root element.
+  function createTicket() {
+    ticketNo++;
+    const num = String(ticketNo).padStart(4, "0");
+
+    const root = document.createElement("div");
+    root.className = "slip decimal-mode";
+    root.innerHTML = `
+      <div class="head">
+        <div class="head-top">
+          <span class="ticket-no">NO. ${num} · ARB</span>
+          <button class="kill" title="Remove this ticket">✕</button>
+        </div>
+        <h1>Arbitrage Ticket</h1>
+        <div class="head-row">
+          <span class="tag">Best price each side across all books</span>
+          <button class="clr btn-clear-all">Clear all</button>
+        </div>
+      </div>
+
+      <div class="fmt">
+        <button data-fmt="decimal" class="active">Decimal</button>
+        <button data-fmt="american">American</button>
+      </div>
+
+      <div class="body">
+        <div class="books"></div>
+        <button class="add-book">+ Add book</button>
+        <div class="wager-block">
+          <div class="field full">
+            <label>Wager (optional)<button class="clr btn-clear-wager" style="float:right">Clear</button></label>
+            <input type="text" inputmode="decimal" class="wager" placeholder="100" />
+          </div>
+        </div>
+      </div>
+
+      <div class="result">
+        <div class="verdict-row">
+          <span class="verdict-label">Arbitrage?</span>
+          <span class="verdict idle">— — —</span>
+        </div>
+        <div class="meter" style="display:none">
+          <div class="meter-bar"><div class="meter-fill"></div></div>
+          <div class="meter-scale"><span>0%</span><span>100% (break-even)</span></div>
+          <div class="meter-read"></div>
+        </div>
+        <div class="breakdown"></div>
+      </div>`;
+
+    // --- scoped helpers -----------------------------------------------------
+    const q = sel => root.querySelector(sel);
+    const qa = sel => root.querySelectorAll(sel);
+    let fmt = "decimal";
+    const placeholders = () => fmt === "decimal" ? ["2.10", "1.95"] : ["110", "105"];
+    const signOf = id => root.querySelector('.sign[data-for="' + id + '"]').dataset.sign;
+
+    function toDecimal(id) {
+      const inp = root.querySelector("#" + id);
+      const raw = inp.value;
+      if (raw === "" || raw == null) return null;
+      const v = parseFloat(raw);
+      if (isNaN(v)) return null;
+      if (fmt === "american") {
+        const mag = Math.abs(v);
+        if (mag < 1) return null;
+        return signOf(id) === "-" ? 1 + 100 / mag : 1 + mag / 100;
+      }
+      return v > 1 ? v : null;
+    }
+
+    // --- books --------------------------------------------------------------
+    const booksEl = q(".books");
+
+    function addBook() {
+      seq++;
+      const aId = "a" + seq, bId = "b" + seq;
+      const [phA, phB] = placeholders();
+      const el = document.createElement("div");
+      el.className = "book";
+      el.innerHTML = `
+        <h2><input class="book-name" type="text" spellcheck="false" /><span class="rule"></span>
+          <button class="clr btn-clear">Clear</button>
+          <button class="clr rmv btn-remove">Remove</button>
+        </h2>
+        <div class="row">
+          <div class="field">
+            <label>Team A</label>
+            <div class="odds-input">
+              <button class="sign" data-for="${aId}" data-sign="+">+</button>
+              <input type="text" inputmode="decimal" class="odds odds-a" id="${aId}" placeholder="${phA}" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Team B</label>
+            <div class="odds-input">
+              <button class="sign" data-for="${bId}" data-sign="-">-</button>
+              <input type="text" inputmode="decimal" class="odds odds-b" id="${bId}" placeholder="${phB}" />
+            </div>
+          </div>
+        </div>`;
+      booksEl.appendChild(el);
+
+      el.querySelectorAll(".odds").forEach(inp => inp.addEventListener("input", calc));
+      el.querySelector(".book-name").addEventListener("input", calc);
+      el.querySelectorAll(".sign").forEach(btn => btn.addEventListener("click", () => {
+        const next = btn.dataset.sign === "+" ? "-" : "+";
+        btn.dataset.sign = next;
+        btn.textContent = next;
+        calc();
+      }));
+      el.querySelector(".btn-clear").addEventListener("click", () => {
+        el.querySelectorAll(".odds").forEach(inp => { inp.value = ""; });
+        calc();
+        el.querySelector(".odds-a").focus();
+      });
+      el.querySelector(".btn-remove").addEventListener("click", () => {
+        el.remove();
+        renumber();
+        calc();
+      });
+
+      renumber();
+      return el;
+    }
+
+    function renumber() {
+      const books = [...booksEl.querySelectorAll(".book")];
+      books.forEach((bk, i) => {
+        bk.querySelector(".book-name").placeholder = "Book " + (i + 1);
+        bk.querySelector(".btn-remove").style.display = books.length > MIN_BOOKS ? "" : "none";
+      });
+    }
+
+    // --- wiring -------------------------------------------------------------
+    q(".add-book").addEventListener("click", () => addBook().querySelector(".odds-a").focus());
+
+    qa(".fmt button").forEach(btn => btn.addEventListener("click", () => {
+      fmt = btn.dataset.fmt;
+      qa(".fmt button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      root.classList.toggle("decimal-mode", fmt === "decimal");
+      const [phA, phB] = placeholders();
+      qa(".odds-a").forEach(inp => inp.placeholder = phA);
+      qa(".odds-b").forEach(inp => inp.placeholder = phB);
+      calc();
+    }));
+
+    q(".wager").addEventListener("input", calc);
+    q(".btn-clear-wager").addEventListener("click", () => { q(".wager").value = ""; calc(); q(".wager").focus(); });
+    q(".btn-clear-all").addEventListener("click", () => {
+      qa(".odds").forEach(inp => { inp.value = ""; });
+      q(".wager").value = "";
+      calc();
+    });
+    q(".kill").addEventListener("click", () => root.remove());
+
+    // --- calculation --------------------------------------------------------
+    function calc() {
+      const verdict = q(".verdict");
+      const pct = q(".meter-read");
+      const meter = q(".meter");
+      const meterFill = q(".meter-fill");
+      const breakdown = q(".breakdown");
+
+      let bestA = 0, bestB = 0, bookA = null, bookB = null;
+      let bestAInp = null, bestBInp = null, countA = 0, countB = 0;
+      [...booksEl.querySelectorAll(".book")].forEach(bk => {
+        const nameInp = bk.querySelector(".book-name");
+        const name = nameInp.value.trim() || nameInp.placeholder;
+        const inpA = bk.querySelector(".odds-a"), inpB = bk.querySelector(".odds-b");
+        const da = toDecimal(inpA.id), db = toDecimal(inpB.id);
+        if (da != null) { countA++; if (da > bestA) { bestA = da; bookA = name; bestAInp = inpA; } }
+        if (db != null) { countB++; if (db > bestB) { bestB = db; bookB = name; bestBInp = inpB; } }
+      });
+
+      // Highlight the winning price for each side, but only when books compete.
+      qa(".odds.best").forEach(i => i.classList.remove("best"));
+      if (countA >= 2 && bestAInp) bestAInp.classList.add("best");
+      if (countB >= 2 && bestBInp) bestBInp.classList.add("best");
+
+      if (bookA == null || bookB == null) {
+        verdict.className = "verdict idle";
+        verdict.textContent = "— — —";
+        meter.style.display = "none";
+        breakdown.className = "breakdown";
+        return;
+      }
+
+      const implied = 1 / bestA + 1 / bestB;
+      const impliedPct = implied * 100;
+
+      meter.style.display = "block";
+      const fillPct = Math.max(0, Math.min(100, (impliedPct - 80) / 40 * 100));
+      meterFill.style.width = fillPct + "%";
+
+      if (implied < 1) {
+        const margin = (1 - implied) * 100;
+        verdict.className = "verdict yes";
+        verdict.textContent = "YES";
+        meterFill.style.background = "var(--green)";
+        pct.innerHTML = `Market total <b>${impliedPct.toFixed(2)}%</b> · edge <b>${margin.toFixed(2)}%</b> under break-even`;
+      } else {
+        const over = (implied - 1) * 100;
+        verdict.className = "verdict no";
+        verdict.textContent = "NO";
+        meterFill.style.background = "var(--red)";
+        pct.innerHTML = `Market total <b>${impliedPct.toFixed(2)}%</b> · <b>${over.toFixed(2)}%</b> over break-even`;
+      }
+
+      const wager = parseFloat(q(".wager").value);
+      if (!isNaN(wager) && wager > 0) {
+        const stakeA = wager * (1 / bestA) / implied;
+        const stakeB = wager * (1 / bestB) / implied;
+        const payout = wager / implied;
+        const profit = payout - wager;
+        const profitColor = profit >= 0 ? "var(--green)" : "var(--red)";
+        breakdown.className = "breakdown show";
+        breakdown.innerHTML = `
+          <div class="line"><span class="lbl">Stake Team A<span class="sub">${bookA} @ ${bestA.toFixed(2)}</span></span><span class="amt">${money(stakeA)}</span></div>
+          <div class="line"><span class="lbl">Stake Team B<span class="sub">${bookB} @ ${bestB.toFixed(2)}</span></span><span class="amt">${money(stakeB)}</span></div>
+          <div class="line"><span class="lbl">Guaranteed return</span><span class="amt">${money(payout)}</span></div>
+          <div class="profit"><span class="lbl">Profit</span><span class="amt" style="color:${profitColor}">${money(profit)}</span></div>`;
+      } else {
+        breakdown.className = "breakdown";
+        breakdown.innerHTML = "";
+      }
+    }
+
+    // start with two books
+    addBook();
+    addBook();
+    calc();
+    return root;
+  }
+
+  // --- stage / add-ticket ---------------------------------------------------
+  const stage = document.getElementById("stage");
+  const addTicketBtn = document.getElementById("addTicket");
+
+  function addTicket() {
+    const t = createTicket();
+    stage.insertBefore(t, addTicketBtn); // keep the + button at the far right
+    addTicketBtn.scrollIntoView({ inline: "end", block: "nearest" });
+    return t;
+  }
+
+  addTicketBtn.addEventListener("click", addTicket);
+
+  addTicket(); // first ticket on load
+</script>
+</body>
+</html>
