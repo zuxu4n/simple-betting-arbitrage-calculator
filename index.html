@@ -87,14 +87,22 @@
     letter-spacing: .1em; text-transform: uppercase; display: flex; align-items: center; gap: 8px;
   }
   .book h2 .rule { flex: 1; height: 1px; background: var(--rule); }
+  .name-edit { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; }
   input.book-name {
-    flex: 0 0 auto; width: 116px; padding: 1px 0; font-size: 11px; font-family: var(--mono);
+    flex: 0 0 auto; width: 100px; padding: 1px 0; font-size: 11px; font-family: var(--mono);
     font-weight: 400; letter-spacing: .1em; text-transform: uppercase; color: var(--ink);
-    background: transparent; border: 0; border-bottom: 1px solid transparent; border-radius: 0;
+    background: transparent; border: 0; border-bottom: 1px dashed var(--rule); border-radius: 0;
+    cursor: text;
   }
-  input.book-name::placeholder { color: var(--ink); opacity: 1; }
-  input.book-name:hover { border-bottom-color: var(--rule); }
-  input.book-name:focus { border-bottom-color: var(--ink); background: transparent; }
+  input.book-name::placeholder { color: var(--muted); opacity: 1; }
+  .name-edit:hover input.book-name { border-bottom-color: var(--ink); }
+  input.book-name:focus { border-bottom-style: solid; border-bottom-color: var(--ink); background: transparent; }
+  .edit-name {
+    flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+    border: 0; background: transparent; cursor: pointer; padding: 0; color: var(--muted);
+  }
+  .edit-name svg { width: 12px; height: 12px; display: block; }
+  .name-edit:hover .edit-name, .edit-name:hover { color: var(--ink); }
 
   .clr {
     border: 0; background: transparent; cursor: pointer; padding: 0;
@@ -262,7 +270,12 @@
       const el = document.createElement("div");
       el.className = "book";
       el.innerHTML = `
-        <h2><input class="book-name" type="text" spellcheck="false" /><span class="rule"></span>
+        <h2><span class="name-edit">
+            <input class="book-name" type="text" spellcheck="false" />
+            <button class="edit-name" title="Edit book name" aria-label="Edit book name">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.3 2.7l2 2L6 12l-2.6.6L4 10z"/><path d="M10.2 3.8l2 2"/></svg>
+            </button>
+          </span><span class="rule"></span>
           <button class="clr btn-clear">Clear</button>
           <button class="clr rmv btn-remove">Remove</button>
         </h2>
@@ -286,6 +299,11 @@
 
       el.querySelectorAll(".odds").forEach(inp => inp.addEventListener("input", calc));
       el.querySelector(".book-name").addEventListener("input", calc);
+      el.querySelector(".edit-name").addEventListener("click", () => {
+        const inp = el.querySelector(".book-name");
+        inp.focus();
+        inp.select();
+      });
       el.querySelectorAll(".sign").forEach(btn => btn.addEventListener("click", () => {
         const next = btn.dataset.sign === "+" ? "-" : "+";
         btn.dataset.sign = next;
