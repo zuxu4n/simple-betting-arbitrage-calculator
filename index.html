@@ -67,7 +67,22 @@
   .kill { border: 0; background: transparent; cursor: pointer; padding: 0; color: var(--muted);
     font-family: var(--mono); font-size: 15px; line-height: 1; }
   .kill:hover { color: var(--red); }
-  h1 { font-size: 19px; margin: 4px 0 0; letter-spacing: -.01em; font-weight: 800; text-transform: uppercase; }
+  .title-edit { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+  input.ticket-name {
+    flex: 0 1 auto; min-width: 0; max-width: 100%;
+    font-size: 19px; font-weight: 800; letter-spacing: -.01em; text-transform: uppercase;
+    font-family: inherit; color: var(--ink);
+    background: transparent; border: 0; border-bottom: 1px dashed var(--rule); border-radius: 0; padding: 0 0 1px;
+  }
+  input.ticket-name::placeholder { color: var(--muted); opacity: 1; }
+  .title-edit:hover input.ticket-name { border-bottom-color: var(--ink); }
+  input.ticket-name:focus { border-bottom-style: solid; border-bottom-color: var(--ink); background: transparent; outline: none; }
+  .edit-title {
+    flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+    border: 0; background: transparent; cursor: pointer; padding: 0; color: var(--muted);
+  }
+  .edit-title svg { width: 13px; height: 13px; display: block; }
+  .title-edit:hover .edit-title, .edit-title:hover { color: var(--ink); }
   .tag { font-size: 11px; color: var(--muted); letter-spacing: .02em; }
   .head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; }
 
@@ -161,9 +176,11 @@
   .verdict.idle { color: var(--muted); font-size: 15px; font-weight: 700; letter-spacing: 0; }
 
   .meter { margin-top: 14px; }
-  .meter-bar { height: 8px; background: #fff; border: 1px solid var(--ink); position: relative; overflow: hidden; }
+  .meter-bar { height: 8px; background: #fff; border: 1px solid var(--ink); position: relative; }
   .meter-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; transition: width .18s ease; }
-  .meter-scale { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 4px; }
+  .meter-mark { position: absolute; top: -3px; bottom: -3px; left: 50%; width: 2px; margin-left: -1px; background: var(--ink); }
+  .meter-scale { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 5px; }
+  .meter-scale .mid { color: var(--ink); font-weight: 700; }
   .meter-read { font-family: var(--mono); font-size: 12px; margin-top: 8px; color: var(--ink); }
   .meter-read b { font-weight: 700; }
 
@@ -203,7 +220,12 @@
           <span class="ticket-no">NO. ${num} · ARB</span>
           <button class="kill" title="Remove this ticket">✕</button>
         </div>
-        <h1>Arbitrage Ticket</h1>
+        <div class="title-edit">
+          <input class="ticket-name" type="text" spellcheck="false" value="Arbitrage Ticket" placeholder="Arbitrage Ticket" aria-label="Ticket name" />
+          <button class="edit-title" title="Edit ticket name" aria-label="Edit ticket name">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.3 2.7l2 2L6 12l-2.6.6L4 10z"/><path d="M10.2 3.8l2 2"/></svg>
+          </button>
+        </div>
         <div class="head-row">
           <span class="tag">Best price each side across all books</span>
           <button class="clr btn-clear-all">Clear all</button>
@@ -232,8 +254,8 @@
           <span class="verdict idle">— — —</span>
         </div>
         <div class="meter" style="display:none">
-          <div class="meter-bar"><div class="meter-fill"></div></div>
-          <div class="meter-scale"><span>0%</span><span>100% (break-even)</span></div>
+          <div class="meter-bar"><div class="meter-fill"></div><div class="meter-mark"></div></div>
+          <div class="meter-scale"><span>90%</span><span class="mid">100% break-even</span><span>110%</span></div>
           <div class="meter-read"></div>
         </div>
         <div class="breakdown"></div>
@@ -356,6 +378,13 @@
     });
     q(".kill").addEventListener("click", () => root.remove());
 
+    // Editable ticket title — auto-size to its content; pencil focuses + selects it.
+    const titleInp = q(".ticket-name");
+    const sizeTitle = () => { titleInp.size = Math.max((titleInp.value || titleInp.placeholder).length + 1, 2); };
+    titleInp.addEventListener("input", sizeTitle);
+    q(".edit-title").addEventListener("click", () => { titleInp.focus(); titleInp.select(); });
+    sizeTitle();
+
     // --- calculation --------------------------------------------------------
     function calc() {
       const verdict = q(".verdict");
@@ -392,7 +421,9 @@
       const impliedPct = implied * 100;
 
       meter.style.display = "block";
-      const fillPct = Math.max(0, Math.min(100, (impliedPct - 80) / 40 * 100));
+      // Bar zooms in on 90%-110% market total; break-even (100%) is the marked
+      // midpoint. Fill reaching the mark = break-even; short of it = arbitrage.
+      const fillPct = Math.max(0, Math.min(100, (impliedPct - 90) / 20 * 100));
       meterFill.style.width = fillPct + "%";
 
       if (implied < 1) {
